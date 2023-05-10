@@ -10,7 +10,16 @@
 int
 sys_fork(void)
 {
-  return fork();
+  cprintf("Sys_fork()\n");
+  int _class;
+  argint(0, &_class);
+  if (_class < 0) {
+    _class = 0;
+  }
+  if (_class > 3) {
+    _class = 3;
+  }
+  return fork(_class);
 }
 
 int
