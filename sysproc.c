@@ -10,7 +10,7 @@
 int
 sys_fork(void)
 {
-  cprintf("Sys_fork()\n");
+  //cprintf("Sys_fork(0)\n");
   int _class;
   argint(0, &_class);
   if (_class < 0) {

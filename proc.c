@@ -10,6 +10,7 @@
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+  
 } ptable;
 
 static struct proc *initproc;
@@ -77,7 +78,7 @@ allocproc(void)
   char *sp;
 
   acquire(&ptable.lock);
-
+  
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
       goto found;
@@ -180,7 +181,7 @@ growproc(int n)
 int
 fork(int _class)
 {
-  cprintf("Fork()\n");
+  //cprintf("fork(0)\n");
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
@@ -340,8 +341,9 @@ scheduler(void)
 
 
 
-      cprintf("Classe do processo: %d  %d\n", p->_class, p->pid);
-
+      if (p->_class != 0) {
+        cprintf("Classe do processo: %d  %d\n", p->_class, p->pid);
+      };
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
