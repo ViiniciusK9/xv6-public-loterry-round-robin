@@ -178,8 +178,9 @@ growproc(int n)
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
 int
-fork(void)
+fork(int _class)
 {
+  cprintf("Fork()\n");
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
@@ -215,6 +216,7 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  np->_class = _class;
 
   release(&ptable.lock);
 
@@ -335,6 +337,10 @@ scheduler(void)
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
+
+
+
+      cprintf("Classe do processo: %d  %d\n", p->_class, p->pid);
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
