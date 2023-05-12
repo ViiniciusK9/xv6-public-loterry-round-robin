@@ -5,13 +5,22 @@
 #include "mmu.h"
 #include "x86.h"
 #include "proc.h"
+#include "defs.h"
 #include "spinlock.h"
 
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
-  
+  struct proc q0[NPROC];
+  struct proc q1[NPROC];
+  struct proc q2[NPROC];
+  struct proc q3[NPROC];
 } ptable;
+
+int c0 = 0;
+int c1 = 0;
+int c2 = 0;
+int c3 = 0;
 
 static struct proc *initproc;
 
@@ -72,17 +81,32 @@ myproc(void) {
 // state required to run in the kernel.
 // Otherwise return 0.
 static struct proc*
-allocproc(void)
+allocproc(int _class)
 {
   struct proc *p;
   char *sp;
 
   acquire(&ptable.lock);
   
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  if (_class == 0)
+  {
+    for(p = ptable.q0; p < &ptable.q0[NPROC]; p++)
     if(p->state == UNUSED)
       goto found;
-
+  } else if (_class == 1) {
+    for(p = ptable.q1; p < &ptable.q1[NPROC]; p++)
+    if(p->state == UNUSED)
+      goto found;
+  } else if (_class == 2) {
+    for(p = ptable.q2; p < &ptable.q2[NPROC]; p++)
+    if(p->state == UNUSED)
+      goto found;
+  } else {
+    for(p = ptable.q3; p < &ptable.q3[NPROC]; p++)
+    if(p->state == UNUSED)
+      goto found;
+  }
+  
   release(&ptable.lock);
   return 0;
 
@@ -124,7 +148,7 @@ userinit(void)
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
-  p = allocproc();
+  p = allocproc(0);
   
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
@@ -187,7 +211,7 @@ fork(int _class)
   struct proc *curproc = myproc();
 
   // Allocate process.
-  if((np = allocproc()) == 0){
+  if((np = allocproc(_class)) == 0){
     return -1;
   }
 
@@ -256,6 +280,8 @@ exit(void)
   wakeup1(curproc->parent);
 
   // Pass abandoned children to init.
+
+  /*
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == curproc){
       p->parent = initproc;
@@ -263,6 +289,43 @@ exit(void)
         wakeup1(initproc);
     }
   }
+  */
+
+  if (curproc->_class == 0){
+      for(p = ptable.q0; p < &ptable.q0[NPROC]; p++){
+        if(p->parent == curproc){
+          p->parent = initproc;
+          if(p->state == ZOMBIE)
+            wakeup1(initproc);
+        }
+      }
+    } else if (curproc->_class == 1) {
+      for(p = ptable.q1; p < &ptable.q1[NPROC]; p++){
+        if(p->parent == curproc){
+          p->parent = initproc;
+          if(p->state == ZOMBIE)
+            wakeup1(initproc);
+        }
+      }
+    } else if (curproc->_class == 2)
+    {
+      for(p = ptable.q2; p < &ptable.q2[NPROC]; p++){
+        if(p->parent == curproc){
+          p->parent = initproc;
+          if(p->state == ZOMBIE)
+            wakeup1(initproc);
+        }
+      }
+    } else {
+      for(p = ptable.q3; p < &ptable.q3[NPROC]; p++){
+        if(p->parent == curproc){
+          p->parent = initproc;
+          if(p->state == ZOMBIE)
+            wakeup1(initproc);
+        }
+      }
+    }
+
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
@@ -283,7 +346,9 @@ wait(void)
   for(;;){
     // Scan through table looking for exited children.
     havekids = 0;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+
+    
+    for(p = ptable.q0; p < &ptable.q0[NPROC]; p++){
       if(p->parent != curproc)
         continue;
       havekids = 1;
@@ -302,7 +367,68 @@ wait(void)
         return pid;
       }
     }
-
+    
+    for(p = ptable.q1; p < &ptable.q1[NPROC]; p++){
+      if(p->parent != curproc)
+        continue;
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+    
+    for(p = ptable.q2; p < &ptable.q2[NPROC]; p++){
+      if(p->parent != curproc)
+        continue;
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+    
+    for(p = ptable.q3; p < &ptable.q3[NPROC]; p++){
+      if(p->parent != curproc)
+        continue;
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+    
+    
     // No point waiting if we don't have any children.
     if(!havekids || curproc->killed){
       release(&ptable.lock);
@@ -333,31 +459,119 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
+    int num = randomrange(0, 11);
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
+    //cprintf("numero sorteado: %d\n", num);
+    if (num < 6) {
 
+      for(p = &ptable.q0[c0]; p < &ptable.q0[NPROC]; p++){
+        if(p->state != RUNNABLE){
+          c0 = (c0 + 1) % NPROC;
+          continue;
+        }
+        c0 = (c0 + 1) % NPROC;
+        //cprintf("numero sorteado: %d\n", num);
+        //cprintf("Classe do processo: %d  %d\n", p->_class, p->pid);
+        
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
 
-      if (p->_class != 0) {
-        cprintf("Classe do processo: %d  %d\n", p->_class, p->pid);
-      };
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+        break;
+      }
+    } else if (num < 9) {
+      for(p = &ptable.q1[c1]; p < &ptable.q1[NPROC]; p++){
+        if(p->state != RUNNABLE){
+          c1 = (c1 + 1) % NPROC;
+          continue;
+        }
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+        c1 = (c1 + 1) % NPROC;
+        
+
+        //cprintf("numero sorteado: %d\n", num);
+        //cprintf("Classe do processo: %d  %d\n", p->_class, p->pid);
+        
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+        break;
+      }
+    } else if (num < 11) {
+      for(p = &ptable.q2[c2]; p < &ptable.q2[NPROC]; p++){
+        if(p->state != RUNNABLE) {
+          c2 = (c2 + 1) % NPROC;
+          continue;
+        }
+
+        c2 = (c2 + 1) % NPROC;
+        //cprintf("numero sorteado: %d\n", num);
+        //cprintf("Classe do processo: %d  %d\n", p->_class, p->pid);
+        
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+        break;
+      }
+    } else {
+      for(p = &ptable.q3[c3]; p < &ptable.q3[NPROC]; p++){
+        if(p->state != RUNNABLE) {
+          c3 = (c3 + 1) % NPROC;
+          continue; 
+        }
+
+        c3 = (c3 + 1) % NPROC;
+        //cprintf("numero sorteado: %d\n", num);
+        //cprintf("Classe do processo: %d  %d\n", p->_class, p->pid);
+        
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+        break;
+      }
     }
+    
     release(&ptable.lock);
 
   }
@@ -467,7 +681,16 @@ wakeup1(void *chan)
 {
   struct proc *p;
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  for(p = ptable.q0; p < &ptable.q0[NPROC]; p++)
+    if(p->state == SLEEPING && p->chan == chan)
+      p->state = RUNNABLE;
+  for(p = ptable.q1; p < &ptable.q1[NPROC]; p++)
+    if(p->state == SLEEPING && p->chan == chan)
+      p->state = RUNNABLE;
+  for(p = ptable.q2; p < &ptable.q2[NPROC]; p++)
+    if(p->state == SLEEPING && p->chan == chan)
+      p->state = RUNNABLE;
+  for(p = ptable.q3; p < &ptable.q3[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan)
       p->state = RUNNABLE;
 }
@@ -490,7 +713,8 @@ kill(int pid)
   struct proc *p;
 
   acquire(&ptable.lock);
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+
+  for(p = ptable.q0; p < &ptable.q0[NPROC]; p++){
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
@@ -500,6 +724,40 @@ kill(int pid)
       return 0;
     }
   }
+
+  for(p = ptable.q1; p < &ptable.q1[NPROC]; p++){
+    if(p->pid == pid){
+      p->killed = 1;
+      // Wake process from sleep if necessary.
+      if(p->state == SLEEPING)
+        p->state = RUNNABLE;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+
+  for(p = ptable.q2; p < &ptable.q2[NPROC]; p++){
+    if(p->pid == pid){
+      p->killed = 1;
+      // Wake process from sleep if necessary.
+      if(p->state == SLEEPING)
+        p->state = RUNNABLE;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+
+  for(p = ptable.q3; p < &ptable.q3[NPROC]; p++){
+    if(p->pid == pid){
+      p->killed = 1;
+      // Wake process from sleep if necessary.
+      if(p->state == SLEEPING)
+        p->state = RUNNABLE;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+
   release(&ptable.lock);
   return -1;
 }
@@ -524,7 +782,55 @@ procdump(void)
   char *state;
   uint pc[10];
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+  for(p = ptable.q3; p < &ptable.q3[NPROC]; p++){
+    if(p->state == UNUSED)
+      continue;
+    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+      state = states[p->state];
+    else
+      state = "???";
+    cprintf("%d %s %s", p->pid, state, p->name);
+    if(p->state == SLEEPING){
+      getcallerpcs((uint*)p->context->ebp+2, pc);
+      for(i=0; i<10 && pc[i] != 0; i++)
+        cprintf(" %p", pc[i]);
+    }
+    cprintf("\n");
+  }
+
+  for(p = ptable.q0; p < &ptable.q0[NPROC]; p++){
+    if(p->state == UNUSED)
+      continue;
+    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+      state = states[p->state];
+    else
+      state = "???";
+    cprintf("%d %s %s", p->pid, state, p->name);
+    if(p->state == SLEEPING){
+      getcallerpcs((uint*)p->context->ebp+2, pc);
+      for(i=0; i<10 && pc[i] != 0; i++)
+        cprintf(" %p", pc[i]);
+    }
+    cprintf("\n");
+  }
+
+  for(p = ptable.q1; p < &ptable.q1[NPROC]; p++){
+    if(p->state == UNUSED)
+      continue;
+    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+      state = states[p->state];
+    else
+      state = "???";
+    cprintf("%d %s %s", p->pid, state, p->name);
+    if(p->state == SLEEPING){
+      getcallerpcs((uint*)p->context->ebp+2, pc);
+      for(i=0; i<10 && pc[i] != 0; i++)
+        cprintf(" %p", pc[i]);
+    }
+    cprintf("\n");
+  }
+
+  for(p = ptable.q2; p < &ptable.q2[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
     if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
