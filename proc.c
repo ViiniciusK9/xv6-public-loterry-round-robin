@@ -10,7 +10,6 @@
 
 struct {
   struct spinlock lock;
-  struct proc proc[NPROC];
   struct proc q0[NPROC];
   struct proc q1[NPROC];
   struct proc q2[NPROC];
@@ -88,6 +87,9 @@ allocproc(int _class)
 
   acquire(&ptable.lock);
   
+  // Checks the process class that will be created
+  // to allocate in the specific queue.
+
   if (_class == 0)
   {
     for(p = ptable.q0; p < &ptable.q0[NPROC]; p++)
@@ -205,7 +207,6 @@ growproc(int n)
 int
 fork(int _class)
 {
-  //cprintf("fork(0)\n");
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
@@ -241,7 +242,7 @@ fork(int _class)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
-  np->_class = _class;
+  np->_class = _class;              // Adding the class to the process struct
 
   release(&ptable.lock);
 
@@ -281,52 +282,40 @@ exit(void)
 
   // Pass abandoned children to init.
 
-  /*
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+  // Modifying to go through the four queues
+  // looking for processes
+  for(p = ptable.q0; p < &ptable.q0[NPROC]; p++){
     if(p->parent == curproc){
       p->parent = initproc;
       if(p->state == ZOMBIE)
         wakeup1(initproc);
     }
   }
-  */
 
-  if (curproc->_class == 0){
-      for(p = ptable.q0; p < &ptable.q0[NPROC]; p++){
-        if(p->parent == curproc){
-          p->parent = initproc;
-          if(p->state == ZOMBIE)
-            wakeup1(initproc);
-        }
-      }
-    } else if (curproc->_class == 1) {
-      for(p = ptable.q1; p < &ptable.q1[NPROC]; p++){
-        if(p->parent == curproc){
-          p->parent = initproc;
-          if(p->state == ZOMBIE)
-            wakeup1(initproc);
-        }
-      }
-    } else if (curproc->_class == 2)
-    {
-      for(p = ptable.q2; p < &ptable.q2[NPROC]; p++){
-        if(p->parent == curproc){
-          p->parent = initproc;
-          if(p->state == ZOMBIE)
-            wakeup1(initproc);
-        }
-      }
-    } else {
-      for(p = ptable.q3; p < &ptable.q3[NPROC]; p++){
-        if(p->parent == curproc){
-          p->parent = initproc;
-          if(p->state == ZOMBIE)
-            wakeup1(initproc);
-        }
-      }
+  for(p = ptable.q1; p < &ptable.q1[NPROC]; p++){
+    if(p->parent == curproc){
+      p->parent = initproc;
+      if(p->state == ZOMBIE)
+        wakeup1(initproc);
     }
+  }
 
+  for(p = ptable.q2; p < &ptable.q2[NPROC]; p++){
+    if(p->parent == curproc){
+      p->parent = initproc;
+      if(p->state == ZOMBIE)
+        wakeup1(initproc);
+    }
+  }
 
+  for(p = ptable.q3; p < &ptable.q3[NPROC]; p++){
+    if(p->parent == curproc){
+      p->parent = initproc;
+      if(p->state == ZOMBIE)
+        wakeup1(initproc);
+    }
+  }
+  
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
   sched();
@@ -347,7 +336,9 @@ wait(void)
     // Scan through table looking for exited children.
     havekids = 0;
 
-    
+    // Modification made to go through the four queues
+    // looking for child processes that are in the zombie 
+    // state to clean up
     for(p = ptable.q0; p < &ptable.q0[NPROC]; p++){
       if(p->parent != curproc)
         continue;
@@ -459,11 +450,18 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
+    // Draws a pseudo random number in a range 
+    // from 0 to 11.
     int num = randomrange(0, 11);
+
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
     //cprintf("numero sorteado: %d\n", num);
+    // 0 - 5 -> classe 0
+    // 6 - 8 -> classe 1
+    // 9 - 10 -> classe 2
+    // 11 -> classe 3
     if (num < 6) {
 
       for(p = &ptable.q0[c0]; p < &ptable.q0[NPROC]; p++){
